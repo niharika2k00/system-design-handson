@@ -1,6 +1,11 @@
 import express from "express";
 import http from "http";
 
+/*
+  LOAD BALANCER - client -> LB (:8080) -> backend (:3001/:3002/:3003)
+  Two jobs: background health checks, and per-request routing.
+*/
+
 const app = express();
 const servers = [
   { host: "localhost", port: 3001, healthy: true },
@@ -28,10 +33,8 @@ function setHealth(server, health) {
 }
 
 // health check runs every 2 secs
-setInterval(() => {
-  (servers.forEach(checkHealth), 2000);
-});
-servers.forEach(checkHealth);
+setInterval(() => servers.forEach(checkHealth), 2000);
+servers.forEach(checkHealth); // run once now, don't wait 2s for the first probe
 
 // round robin algorithm
 const getNextServer = (candidates) => {
@@ -42,54 +45,69 @@ const getNextServer = (candidates) => {
   return target;
 };
 
-// routing
 /*
   - filter servers
   - forwards/sends requests to the active servers
   - streams response back
   - handles faliure
 */
-
-/*
- Piping in NodeJS is the process by which byte data from one stream is sent to another stream
-
- allows you to connect a readable stream directly into a writable stream, automatically managing data flow and backpressure. Since an HTTP request (http.IncomingMessage) is a readable stream and an HTTP response (http.ServerResponse) is a writable stream, you can easily pipe data between them.
-
- readableStream.pipe(writableStream);
-
-*/
-const requestHandler = (req, res, tried = new Set()) => {
-  const candidates = servers.filter((item) => item.healthy && !tried.has(item.port));
+// runs once per request + once per retry.
+// attemptedPorts = backends the request already tried. `healthy` is a stale 2s hint (as health check runs every 2s)that can flip back; attemptedPorts only grows, so retries always terminate.
+const requestHandler = (req, res, attemptedPorts = new Set()) => {
+  const candidates = servers.filter((item) => item.healthy && !attemptedPorts.has(item.port));
 
   if (candidates.length === 0) return res.status(503).send("no healthy backend server available");
 
   const targetServer = getNextServer(candidates);
-  tried.add(targetServer.port);
-  console.log(`${req.method} ${req.originalUrl} -> ${target.port}`);
+  attemptedPorts.add(targetServer.port); // recorded at pick time, before the outcome is known
+  console.log(`${req.method} ${req.originalUrl} -> ${targetServer.port}`);
 
   // outgoing request from LB to backend server. Writable stream.
   const upstream = http.request(
     {
-      host: target.host,
-      port: target.port,
+      host: targetServer.host,
+      port: targetServer.port,
       path: req.originalUrl,
       method: req.method,
-      headers: { ...req.headers, host: `${target.host}:${target.port}` },
+      headers: { ...req.headers, host: `${targetServer.host}:${targetServer.port}` }, // only host rewritten
     },
+
+    // Error before writeHead (connection refused, DNS fail) → headersSent === false → safe to retry, client saw nothing
+    // Error after writeHead (died mid-body) → headersSent === true → skip the retry, connection just drops, client sees a truncated response
     (serverResponse) => {
-      res.writeHead(serverResponse.statusCode, serverResponse.headers);
+      res.writeHead(serverResponse.statusCode, serverResponse.headers); // headersSent -> true | fires when backend HEADERS arrive, not the full body
       serverResponse.pipe(res);
     },
   );
 
+  // err handling when LB encounter error for a server when its down(not healthy)
   upstream.on("error", () => {
-    setHealth(target, false);
-    if (!res.headersSent) requestHandler(req, res, tried);
+    setHealth(targetServer, false);
+    if (!res.headersSent) requestHandler(req, res, attemptedPorts);
   });
 
   if (req.readableEnded) upstream.end();
   else req.pipe(upstream);
 };
 
-app.use((req, res) => handleRequest(req, res));
+// arrow wrapper required - app.use(requestHandler) passes express's `next` as the 3rd arg
+app.use((req, res) => requestHandler(req, res));
 app.listen(8080, () => console.log("LoadBalancer running on port 8080"));
+
+/*
+Run in terminal:
+node server.js 3001
+node server.js 3002
+node server.js 3003
+node loadbalancer.js
+
+curl -s localhost:8080/health
+
+// continuous traffic
+while true; do curl -s localhost:8080/; echo; sleep 0.5; done
+
+Demo: with traffic flowing, shutdown a backend server -> DOWN within 2s, rotation drops to survivors. Restart -> back in. Stop all three -> 503.
+
+ Piping sends byte data from a readable stream straight into a writable one, handling flow and backpressure. req is readable, res is writable.
+   readableStream.pipe(writableStream);
+*/

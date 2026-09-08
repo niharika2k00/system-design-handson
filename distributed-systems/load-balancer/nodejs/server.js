@@ -1,6 +1,6 @@
 import express from "express";
 
-const PORT = Number(process.args[2] ?? 3001); // 3rd argument from the commandline
+const PORT = Number(process.argv[2] ?? 3001); // 3rd argument from the commandline
 const app = express();
 
 app.get("/health", (req, res) => res.json({ ok: true, port: PORT }));

@@ -1,10 +1,10 @@
 {
-  "name": "nodejs",
+  "name": "load-balancer",
   "version": "1.0.0",
   "description": "",
   "license": "ISC",
-  "author": "",
-  "type": "commonjs",
+  "author": "Niharika Dutta",
+  "type": "module",
   "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
