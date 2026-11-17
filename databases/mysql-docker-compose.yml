@@ -1,0 +1,31 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: mysql-sandbox
+    environment:
+      MYSQL_DATABASE: sandbox
+      MYSQL_ROOT_PASSWORD: admin
+      MYSQL_USER: niharika
+      MYSQL_PASSWORD: pwsandbox
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-sandbox-data:/var/lib/mysql
+      - ./mysql-init:/docker-entrypoint-initdb.d:ro
+    command:
+      - mysqld
+      - --innodb-lock-wait-timeout=10 # fail a blocked statement in 10s instead of the 50s default
+      - --innodb-print-all-deadlocks=ON # keep every deadlock in the error log, not just the latest
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-psandbox"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  mysql-sandbox-data:
+    name: mysql-sandbox-data
+    driver: local
+    external: false
+
+# With this healthcheck, any depends_on with condition: service_healthy in other services will wait until MySQL is genuinely ready. But if there is no other service that is using mysql, then we can drop `healthcheck` service.

@@ -1,0 +1,36 @@
+name: postgres-sandbox
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres-sandbox
+    environment:
+      POSTGRES_DB: sandbox
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: pwsandbox
+    ports:
+      - "5433:5432" # host(mac):container
+    volumes:
+      - postgres-sandbox-data:/var/lib/postgresql/data
+      - ./init:/docker-entrypoint-initdb.d:ro
+    command:
+      - postgres
+      - -c
+      - log_lock_waits=on # log when a session waits longer than deadlock_timeout
+      - -c
+      - deadlock_timeout=1s
+      - -c
+      - log_statement=all # log every sql statement
+      - -c
+      - "log_line_prefix=%m [%p] %d %a " # timestamp, pid, database, app name
+volumes:
+  postgres-sandbox-data:
+    name: postgres-sandbox-data
+    # driver: local
+    external: false
+
+# external: false - use if want to create a fresh new volume
+# external: true - use while using existing volume. Compose won't create/remove this volume. Need to delete this external volume manually
+
+# docker exec -it postgres-sandbox psql -U admin -d sandbox
+# psql -h localhost -p 5433 -U admin -d sandbox
