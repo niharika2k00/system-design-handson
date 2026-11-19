@@ -52,3 +52,32 @@ public class Counter {
 
 
 // AtomicBoolean is a boolean wrapped in an object whose operations are atomic. Each operation happens as one indivisible step, and the new value is immediately visible to all threads.
+
+
+/*
+join() makes the main thread wait until that thread has finished. It doesn’t do anything to the other thread.
+
+
+Dry run with 3 threads (T1 takes 5 ms, T2 takes 2 ms, T3 takes 8 ms):
+
+main calls T1.join() and waits about 5 ms.
+T1 finishes, so main moves to T2.join(). T2 finished earlier, so this returns immediately.
+main calls T3.join() and waits until T3 finishes at about 8 ms.
+main prints. The total wait is about 8 ms, not 15 ms, because the threads were running in parallel while main waited.
+
+
+A catch only matches its own type and its subtypes. The hierarchy is:
+
+
+Throwable
+├── Error                     (OutOfMemoryError ... don't catch)
+└── Exception
+    ├── InterruptedException  (checked)
+    ├── IOException           (checked)
+    └── RuntimeException      (unchecked)
+        ├── IllegalArgumentException
+        ├── NullPointerException
+        └── ...
+
+Both extend Exception, but they sit on different branches. IllegalArgumentException is not an InterruptedException, so that catch never matches.
+*/

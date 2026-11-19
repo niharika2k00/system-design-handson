@@ -12,7 +12,7 @@ public class CounterSolution {
 
     static int count = 0;
     static final Object monitor = new Object();
-    static final AtomicInteger atomicCount = new AtomicInteger();
+    static final AtomicInteger atomicCounter = new AtomicInteger();
     static final ReentrantLock lock = new ReentrantLock();
     static final SpinLock spinLock = new SpinLock();
 
@@ -44,7 +44,7 @@ public class CounterSolution {
 
     // lock-free: single CPU instruction (CAS), no thread ever sleeps
     static void incrementAtomic() {
-        atomicCount.incrementAndGet();
+        atomicCounter.incrementAndGet();
     }
 
     // built-in mutex
@@ -104,7 +104,7 @@ public class CounterSolution {
             thread.join();
 
         long ms = (System.nanoTime() - start) / 1_000_000;
-        int actual = mode.equals("atomic") ? atomicCount.get() : count;
+        int actual = mode.equals("atomic") ? atomicCounter.get() : count;
         System.out.printf("mode=%s expected=%d actual=%d time=%dms%n", mode, THREADS * INCREMENTS, actual, ms);
     }
 }

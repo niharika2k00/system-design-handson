@@ -31,7 +31,7 @@ java Counter.java
 
 ## Drill 2 — Check-then-act (`SeatBooking.java`)
 
-500 users book seat 7 at the same instant → many "succeed".
+10 seats, 500 users (one thread each). All 500 click "Book" on the same seat 7 at the same instant. Only 1 user should win and 499 get "seat taken", but many "succeed" (double booking).
 
 - [ ] Fix with one global lock
 - [ ] Replace with one lock per seat (lock striping) — why is this better?
